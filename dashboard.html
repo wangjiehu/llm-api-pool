@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Pool Console</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #09090b;
+    --panel: #111114;
+    --panel-2: #17171b;
+    --line: #27272f;
+    --line-soft: #202027;
+    --text: #f5f5f7;
+    --muted: #9b9ba5;
+    --subtle: #71717a;
+    --good: #34d399;
+    --warn: #fbbf24;
+    --bad: #fb7185;
+    --blue: #60a5fa;
+    --violet: #a78bfa;
+    --shadow: 0 18px 60px rgba(0,0,0,.38);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  :root.light {
+    color-scheme: light;
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --panel-2: #f8f8fa;
+    --line: #dedee5;
+    --line-soft: #ececf1;
+    --text: #17171c;
+    --muted: #60606b;
+    --subtle: #85858f;
+    --shadow: 0 18px 44px rgba(15,23,42,.10);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); }
+  body { font-size: 13px; }
+  button, input, select, textarea { font: inherit; }
+  button { cursor: pointer; }
+
+  .app {
+    min-height: 100vh;
+    padding: 14px;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .topbar {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .logo {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--text), #7c7c86);
+    color: var(--bg);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    letter-spacing: .02em;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.15;
+    font-weight: 720;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
+  .top-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .panel-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(130px, 1fr));
+    gap: 10px;
+  }
+
+  .metric-card, .panel {
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  .metric-card {
+    min-height: 70px;
+    border-radius: 14px;
+    padding: 12px;
+    overflow: hidden;
+  }
+
+  .label {
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .metric {
+    margin-top: 6px;
+    font-size: 24px;
+    line-height: 1;
+    font-weight: 760;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .workspace {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 340px minmax(420px, 1fr) 390px;
+    gap: 12px;
+  }
+
+  .stack {
+    min-height: 0;
+    display: grid;
+    gap: 12px;
+  }
+
+  .left-stack { grid-template-rows: auto minmax(0, 1fr); }
+  .right-stack { grid-template-rows: minmax(0, 1fr) 190px; }
+
+  .panel {
+    border-radius: 16px;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-head {
+    min-height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 13px 10px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .panel-title {
+    font-size: 13px;
+    font-weight: 720;
+  }
+
+  .panel-body {
+    min-height: 0;
+    overflow: auto;
+    padding: 12px 13px 13px;
+  }
+
+  .server-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: end;
+  }
+
+  .field { display: grid; gap: 5px; margin-bottom: 10px; }
+  .field.compact { margin-bottom: 8px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .field-row.three { grid-template-columns: 1fr 1fr 1fr; }
+
+  input, select, textarea {
+    width: 100%;
+    color: var(--text);
+    background: rgba(255,255,255,.035);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    outline: none;
+    padding: 9px 10px;
+    min-height: 36px;
+  }
+
+  .light input, .light select, .light textarea {
+    background: rgba(0,0,0,.025);
+  }
+
+  textarea {
+    resize: vertical;
+    min-height: 74px;
+    max-height: 180px;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(96,165,250,.14);
+  }
+
+  .hint {
+    color: var(--subtle);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .btn {
+    min-height: 34px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    color: var(--text);
+    background: rgba(255,255,255,.055);
+    padding: 7px 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .btn:hover { border-color: var(--subtle); }
+  .btn.primary {
+    border-color: transparent;
+    background: linear-gradient(135deg, #f5f5f7, #a1a1aa);
+    color: #111114;
+    font-weight: 720;
+  }
+  .btn.danger { color: var(--bad); }
+  .btn.small { min-height: 28px; padding: 5px 8px; font-size: 12px; }
+
+  .hidden { display: none !important; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .muted { color: var(--muted); }
+  .good { color: var(--good); }
+  .warn { color: var(--warn); }
+  .bad { color: var(--bad); }
+
+  .api-list {
+    display: grid;
+    gap: 7px;
+    margin-top: 10px;
+  }
+
+  .api-row {
+    display: grid;
+    grid-template-columns: 82px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--line-soft);
+    border-radius: 11px;
+    background: rgba(255,255,255,.025);
+  }
+
+  .account-list, .status-list, .log-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .account-card, .status-card, .log-item {
+    border: 1px solid var(--line-soft);
+    background: rgba(255,255,255,.025);
+    border-radius: 13px;
+    padding: 10px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .name {
+    font-weight: 720;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pills {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+
+  .pill {
+    border: 1px solid var(--line);
+    color: var(--muted);
+    background: rgba(255,255,255,.035);
+    border-radius: 999px;
+    padding: 3px 7px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .pill.good { color: var(--good); border-color: rgba(52,211,153,.35); }
+  .pill.warn { color: var(--warn); border-color: rgba(251,191,36,.35); }
+  .pill.bad { color: var(--bad); border-color: rgba(251,113,133,.35); }
+  .pill.blue { color: var(--blue); border-color: rgba(96,165,250,.35); }
+
+  .bar {
+    height: 7px;
+    margin-top: 9px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255,255,255,.08);
+  }
+
+  .bar > div {
+    height: 100%;
+    min-width: 1px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--good), var(--blue));
+  }
+
+  .play-output {
+    min-height: 150px;
+    height: min(34vh, 280px);
+    margin-top: 10px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid var(--line-soft);
+    border-radius: 12px;
+    padding: 11px;
+    background: rgba(0,0,0,.20);
+  }
+
+  .toast {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    max-width: min(420px, calc(100vw - 36px));
+    z-index: 20;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    color: var(--text);
+    padding: 10px 12px;
+    box-shadow: var(--shadow);
+  }
+
+  @media (min-width: 1080px) {
+    html, body { height: 100%; overflow: hidden; }
+    .app { height: 100vh; overflow: hidden; }
+  }
+
+  @media (max-width: 1180px) {
+    .summary { grid-template-columns: repeat(3, minmax(130px, 1fr)); }
+    .workspace { grid-template-columns: 330px minmax(360px, 1fr); }
+    .right-stack { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(260px, auto); }
+  }
+
+  @media (max-width: 900px) {
+    html, body { overflow: auto; }
+    .app { padding: 10px; display: block; }
+    .topbar, .summary, .workspace, .stack, .right-stack { display: grid; gap: 10px; }
+    .topbar { grid-template-columns: 1fr; }
+    .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 10px 0; }
+    .workspace { grid-template-columns: 1fr; }
+    .right-stack { grid-template-columns: 1fr; }
+    .panel { min-height: 240px; margin-bottom: 10px; }
+    .field-row, .field-row.three, .server-grid, .api-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">L</div>
+      <div>
+        <h1>LLM Pool Console</h1>
+        <div class="subtitle">Local software gateway for OpenAI and Anthropic compatible APIs</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="btn small" id="themeButton" type="button">Theme</button>
+      <button class="btn small" id="refreshButton" type="button">Refresh</button>
+      <a class="btn small" href="https://github.com/wangjiehu/llm-api-pool" target="_blank" rel="noreferrer">GitHub</a>
+    </div>
+  </header>
+
+  <section class="summary">
+    <div class="metric-card">
+      <div class="label">Health</div>
+      <div class="metric" id="metricHealth">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">Accounts</div>
+      <div class="metric" id="metricAccounts">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">In Flight</div>
+      <div class="metric" id="metricFlight">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">Tokens Used</div>
+      <div class="metric" id="metricTokens">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">Server</div>
+      <div class="metric" id="metricServer" style="font-size:16px">Unchecked</div>
+    </div>
+  </section>
+
+  <main class="workspace">
+    <section class="stack left-stack">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Server and API</div>
+          <div class="panel-actions">
+            <button class="btn small" id="healthButton" type="button">Test</button>
+            <button class="btn small" id="diagnosticsButton" type="button">Diagnostics</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="server-grid">
+            <div class="field compact">
+              <label class="label" for="serverUrl">Backend URL</label>
+              <input class="mono" id="serverUrl" value="http://localhost:8080" spellcheck="false">
+            </div>
+            <div class="field compact">
+              <label class="label" for="adminToken">Admin token</label>
+              <input class="mono" id="adminToken" type="password" placeholder="Only if configured">
+            </div>
+          </div>
+          <div class="hint">Desktop app mode serves this console and the APIs from the same local port. GitHub Pages mode points this page at your own backend URL.</div>
+          <div class="api-list">
+            <div class="api-row">
+              <span class="muted">Base</span>
+              <code class="mono" id="apiBase">http://localhost:8080/v1</code>
+              <button class="btn small" data-copy="apiBase" type="button">Copy</button>
+            </div>
+            <div class="api-row">
+              <span class="muted">OpenAI</span>
+              <code class="mono" id="apiOpenAI">/v1/chat/completions</code>
+              <button class="btn small" data-copy="apiOpenAI" type="button">Copy</button>
+            </div>
+            <div class="api-row">
+              <span class="muted">Anthropic</span>
+              <code class="mono" id="apiAnthropic">/v1/messages</code>
+              <button class="btn small" data-copy="apiAnthropic" type="button">Copy</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Add Account</div>
+          <span class="hint" id="formModeHint">official key</span>
+        </div>
+        <div class="panel-body">
+          <form id="accountForm">
+            <div class="field-row">
+              <div class="field">
+                <label class="label" for="chType">Type</label>
+                <select id="chType">
+                  <option value="official_openai">OpenAI Official</option>
+                  <option value="official_claude">Claude Official</option>
+                  <option value="official_gemini">Gemini Official</option>
+                  <option value="web_chatgpt">ChatGPT Web</option>
+                  <option value="web_codex">ChatGPT Codex</option>
+                  <option value="web_claude">Claude Web</option>
+                  <option value="web_gemini">Gemini Web</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="label" for="chName">Name</label>
+                <input id="chName" placeholder="Optional label">
+              </div>
+            </div>
+
+            <div class="field" id="apiKeyBlock">
+              <label class="label" for="apiKey">API key</label>
+              <input class="mono" id="apiKey" type="password" placeholder="Stored only on your backend">
+            </div>
+
+            <div id="webBlock" class="hidden">
+              <div class="field-row">
+                <div class="field">
+                  <label class="label" for="email">Email</label>
+                  <input id="email" autocomplete="username" placeholder="Optional when pasting cookies">
+                </div>
+                <div class="field">
+                  <label class="label" for="password">Password</label>
+                  <input id="password" type="password" autocomplete="current-password" placeholder="Prefer cookies for 2FA accounts">
+                </div>
+              </div>
+              <div class="field">
+                <label class="label" for="cookiesJson">Cookies JSON</label>
+                <textarea class="mono" id="cookiesJson" spellcheck="false" placeholder='{"__Secure-next-auth.session-token":"..."}'></textarea>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="label" for="defaultModel">Default model for auto</label>
+              <input class="mono" id="defaultModel" placeholder="Provider default, editable">
+            </div>
+
+            <div class="field-row three">
+              <div class="field">
+                <label class="label" for="quota">Quota</label>
+                <input id="quota" type="number" min="0" placeholder="Optional">
+              </div>
+              <div class="field">
+                <label class="label" for="quotaCategory">Category</label>
+                <select id="quotaCategory">
+                  <option value="">auto</option>
+                  <option value="general">general</option>
+                  <option value="chat">chat</option>
+                  <option value="codex">codex</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="label" for="maxConcurrent">Concurrency</label>
+                <input id="maxConcurrent" type="number" min="1" max="32" placeholder="auto">
+              </div>
+            </div>
+
+            <button class="btn primary" type="submit" style="width:100%">Add account</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">Accounts</div>
+          <div class="hint">Routing prefers healthy, compatible, low-latency channels.</div>
+        </div>
+        <button class="btn small" id="reloadAccounts" type="button">Reload</button>
+      </div>
+      <div class="panel-body">
+        <div id="accounts" class="account-list"></div>
+      </div>
+    </section>
+
+    <section class="stack right-stack">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Playground</div>
+          <div class="pills">
+            <select id="format" style="min-height:28px;padding:4px 8px">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+            <label class="pill"><input id="stream" type="checkbox" style="width:auto;min-height:0;margin-right:5px">stream</label>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="field-row">
+            <div class="field">
+              <label class="label" for="model">Model</label>
+              <input class="mono" id="model" value="auto">
+            </div>
+            <div class="field">
+              <label class="label" for="maxTokens">Max tokens</label>
+              <input id="maxTokens" type="number" min="1" placeholder="default">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label" for="prompt">Prompt</label>
+            <textarea id="prompt" placeholder="Send a real request through the pool."></textarea>
+          </div>
+          <button class="btn primary" id="sendButton" type="button" style="width:100%">Send request</button>
+          <pre class="play-output mono" id="output"></pre>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Activity</div>
+          <button class="btn small" id="clearLog" type="button">Clear</button>
+        </div>
+        <div class="panel-body">
+          <div id="log" class="log-list"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script>
+const DEFAULT_MODELS = {
+  official_openai: "gpt-4o-mini",
+  official_claude: "claude-3-5-sonnet-20241022",
+  official_gemini: "gemini-2.5-flash",
+  web_chatgpt: "auto",
+  web_codex: "auto",
+  web_claude: "auto",
+  web_gemini: "auto"
+};
+
+function isLocalBackendOrigin(value) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(value || "");
+}
+
+function initialServerUrl() {
+  const saved = localStorage.getItem("llmPoolServer");
+  const origin = location.origin && location.origin !== "null" ? location.origin : "";
+  if (isLocalBackendOrigin(origin) && (!saved || isLocalBackendOrigin(saved))) return origin;
+  return saved || "http://localhost:8080";
+}
+
+let SERVER = initialServerUrl();
+const BOOTSTRAP = window.__LLM_POOL_BOOTSTRAP__ || {};
+let ADMIN_TOKEN = localStorage.getItem("llmPoolAdminToken") || BOOTSTRAP.adminToken || "";
+let CHANNELS = [];
+let logs = [];
+
+const $ = (id) => document.getElementById(id);
+
+function initTheme() {
+  const saved = localStorage.getItem("llmPoolTheme");
+  const light = saved ? saved === "light" : false;
+  document.documentElement.classList.toggle("light", light);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  }[ch]));
+}
+
+function normalizeServer() {
+  SERVER = $("serverUrl").value.trim().replace(/\/+$/, "") || "http://localhost:8080";
+  ADMIN_TOKEN = $("adminToken").value.trim();
+  localStorage.setItem("llmPoolServer", SERVER);
+  localStorage.setItem("llmPoolAdminToken", ADMIN_TOKEN);
+  $("apiBase").textContent = SERVER + "/v1";
+  $("apiOpenAI").textContent = SERVER + "/v1/chat/completions";
+  $("apiAnthropic").textContent = SERVER + "/v1/messages";
+}
+
+function headers(extra = {}) {
+  const h = {...extra};
+  if (ADMIN_TOKEN) h["X-Admin-Token"] = ADMIN_TOKEN;
+  return h;
+}
+
+async function adminFetch(path, options = {}) {
+  normalizeServer();
+  const opts = {...options};
+  opts.headers = headers(opts.headers || {});
+  return fetch(SERVER + path, opts);
+}
+
+function showToast(message, bad = false) {
+  const toast = $("toast");
+  toast.textContent = message;
+  toast.classList.toggle("bad", bad);
+  toast.classList.remove("hidden");
+  setTimeout(() => toast.classList.add("hidden"), 2600);
+}
+
+function addLog(message, tone = "muted") {
+  logs.unshift({time: new Date(), message, tone});
+  logs = logs.slice(0, 30);
+  renderLogs();
+}
+
+function renderLogs() {
+  const root = $("log");
+  if (!logs.length) {
+    root.innerHTML = '<div class="hint">No activity yet.</div>';
+    return;
+  }
+  root.innerHTML = logs.map((item) => `
+    <div class="log-item">
+      <div class="row">
+        <span class="${item.tone}">${escapeHtml(item.message)}</span>
+        <span class="hint mono">${item.time.toLocaleTimeString()}</span>
+      </div>
+    </div>
+  `).join("");
+}
+
+async function testHealth() {
+  normalizeServer();
+  try {
+    const r = await fetch(SERVER + "/health");
+    const j = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(j));
+    $("metricServer").textContent = j.arch ? `Online ${j.arch}` : "Online";
+    $("metricServer").className = "metric good";
+    addLog(`Health OK, ${j.channels || 0} channels`, "good");
+    return true;
+  } catch (err) {
+    $("metricServer").textContent = "Offline";
+    $("metricServer").className = "metric bad";
+    addLog("Health check failed: " + err.message, "bad");
+    return false;
+  }
+}
+
+async function downloadDiagnostics() {
+  normalizeServer();
+  try {
+    const r = await adminFetch("/admin/diagnostics");
+    if (r.status === 401) throw new Error("admin token required");
+    const data = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(data));
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `llm-pool-diagnostics-${stamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    addLog("Diagnostics downloaded", "good");
+    showToast("Diagnostics downloaded");
+  } catch (err) {
+    addLog("Diagnostics failed: " + err.message, "bad");
+    showToast("Diagnostics failed", true);
+  }
+}
+
+function setEmptyMetrics() {
+  $("metricHealth").textContent = "0";
+  $("metricAccounts").textContent = "0";
+  $("metricFlight").textContent = "0";
+  $("metricTokens").textContent = "0";
+}
+
+async function loadStatus() {
+  normalizeServer();
+  try {
+    const r = await adminFetch("/admin/status");
+    if (r.status === 401) throw new Error("admin token required");
+    const data = await r.json();
+    CHANNELS = data.channels || [];
+    renderStatus(CHANNELS);
+    return CHANNELS;
+  } catch (err) {
+    setEmptyMetrics();
+    $("accounts").innerHTML = `<div class="hint">Unable to load accounts. ${escapeHtml(err.message)}</div>`;
+    addLog("Status load failed: " + err.message, "bad");
+    return [];
+  }
+}
+
+function renderStatus(channels) {
+  const healthy = channels.filter((c) => !c.cooldown && (c.consec_fail || 0) === 0).length;
+  const inFlight = channels.reduce((sum, c) => sum + (c.in_flight || 0), 0);
+  const tokens = channels.reduce((sum, c) => sum + (c.used_est || 0), 0);
+  $("metricHealth").textContent = String(healthy);
+  $("metricAccounts").textContent = String(channels.length);
+  $("metricFlight").textContent = String(inFlight);
+  $("metricTokens").textContent = tokens.toLocaleString();
+
+  if (!channels.length) {
+    $("accounts").innerHTML = '<div class="hint">No accounts yet. Add one from the left panel.</div>';
+    return;
+  }
+
+  $("accounts").innerHTML = channels.map((c) => {
+    const used = c.used_est || 0;
+    const quota = c.quota_est || 0;
+    const pct = quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : 0;
+    const health = Math.round((c.health || 1) * 100);
+    const tone = c.cooldown ? "warn" : ((c.consec_fail || 0) ? "bad" : "good");
+    const typeTone = c.type.startsWith("official_") ? "blue" : "good";
+    return `
+      <article class="account-card">
+        <div class="row">
+          <div class="name">${escapeHtml(c.name)}</div>
+          <button class="btn small danger" type="button" data-delete="${escapeHtml(c.id)}">Delete</button>
+        </div>
+        <div class="pills" style="margin-top:8px">
+          <span class="pill ${typeTone}">${escapeHtml(c.type)}</span>
+          <span class="pill ${tone}">${health}% health</span>
+          ${c.cooldown ? '<span class="pill warn">cooldown</span>' : ''}
+          ${(c.in_flight || 0) ? `<span class="pill blue">${c.in_flight} in flight</span>` : ''}
+          ${c.quota_category && c.quota_category !== "general" ? `<span class="pill">${escapeHtml(c.quota_category)}</span>` : ''}
+          <span class="pill">${escapeHtml(c.avg_latency)}s avg</span>
+        </div>
+        <div class="bar"><div style="width:${pct}%"></div></div>
+        <div class="row hint" style="margin-top:7px">
+          <span>${used.toLocaleString()} / ${quota.toLocaleString()} estimated tokens</span>
+          <span>${(c.remaining_est || 0).toLocaleString()} left</span>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function addChannel(event) {
+  event.preventDefault();
+  normalizeServer();
+  const type = $("chType").value;
+  const body = {
+    type,
+    name: $("chName").value.trim() || undefined
+  };
+
+  const defaultModel = $("defaultModel").value.trim();
+  if (defaultModel && defaultModel !== "auto") body.default_model = defaultModel;
+  const quota = $("quota").value.trim();
+  if (quota) body.quota = Number(quota);
+  const category = $("quotaCategory").value;
+  if (category) body.quota_category = category;
+  const maxConcurrent = $("maxConcurrent").value.trim();
+  if (maxConcurrent) body.max_concurrent = Number(maxConcurrent);
+
+  if (type.startsWith("official_")) {
+    body.api_key = $("apiKey").value.trim();
+    if (!body.api_key) return showToast("API key is required for official channels", true);
+  } else {
+    const cookies = $("cookiesJson").value.trim();
+    const email = $("email").value.trim();
+    const password = $("password").value;
+    if (cookies) {
+      try {
+        body.cookies = JSON.parse(cookies);
+      } catch (err) {
+        return showToast("Cookies JSON is invalid", true);
+      }
+      if (email) body.email = email;
+    } else if (email && password) {
+      body.email = email;
+      body.password = password;
+    } else {
+      return showToast("Provide cookies JSON or email plus password", true);
+    }
+  }
+
+  try {
+    const r = await adminFetch("/admin/channels", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    });
+    const text = await r.text();
+    if (!r.ok) throw new Error(text);
+    $("password").value = "";
+    $("apiKey").value = "";
+    $("cookiesJson").value = "";
+    addLog("Account added", "good");
+    showToast("Account added");
+    await loadStatus();
+  } catch (err) {
+    addLog("Add account failed: " + err.message, "bad");
+    showToast("Add account failed", true);
+  }
+}
+
+async function deleteChannel(id) {
+  if (!confirm("Delete this account from the local pool?")) return;
+  try {
+    const r = await adminFetch("/admin/channels/" + encodeURIComponent(id), {method: "DELETE"});
+    if (!r.ok) throw new Error(await r.text());
+    addLog("Account deleted", "warn");
+    await loadStatus();
+  } catch (err) {
+    addLog("Delete failed: " + err.message, "bad");
+    showToast("Delete failed", true);
+  }
+}
+
+function extractOpenAIStream(buffer, output) {
+  const lines = buffer.split(/\r?\n/);
+  let remainder = "";
+  for (const line of lines) {
+    if (!line.startsWith("data:")) {
+      if (line && line === lines[lines.length - 1]) remainder = line;
+      continue;
+    }
+    const data = line.slice(5).trim();
+    if (!data || data === "[DONE]") continue;
+    try {
+      const j = JSON.parse(data);
+      if (j.error) output.textContent += "\n[error] " + j.error.message;
+      const delta = j.choices?.[0]?.delta?.content || "";
+      output.textContent += delta;
+    } catch {}
+  }
+  return remainder;
+}
+
+function extractAnthropicStream(buffer, output) {
+  const events = buffer.split(/\n\n/);
+  const remainder = events.pop() || "";
+  for (const block of events) {
+    const dataLine = block.split(/\r?\n/).find((line) => line.startsWith("data:"));
+    if (!dataLine) continue;
+    try {
+      const j = JSON.parse(dataLine.slice(5).trim());
+      if (j.type === "content_block_delta") output.textContent += j.delta?.text || "";
+      if (j.type === "error") output.textContent += "\n[error] " + (j.error?.message || "stream failed");
+    } catch {}
+  }
+  return remainder;
+}
+
+async function sendPlayground() {
+  normalizeServer();
+  const format = $("format").value;
+  const stream = $("stream").checked;
+  const output = $("output");
+  const prompt = $("prompt").value.trim();
+  if (!prompt) return showToast("Prompt is empty", true);
+
+  const maxTokens = $("maxTokens").value.trim();
+  const model = $("model").value.trim() || "auto";
+  output.textContent = "";
+
+  const body = format === "anthropic"
+    ? {model, max_tokens: maxTokens ? Number(maxTokens) : 1024, messages: [{role: "user", content: prompt}], stream}
+    : {model, max_tokens: maxTokens ? Number(maxTokens) : undefined, messages: [{role: "user", content: prompt}], stream};
+
+  try {
+    const path = format === "anthropic" ? "/v1/messages" : "/v1/chat/completions";
+    const r = await fetch(SERVER + path, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error(await r.text());
+
+    if (!stream) {
+      const j = await r.json();
+      output.textContent = format === "anthropic"
+        ? (j.content?.map((b) => b.text || "").join("") || JSON.stringify(j, null, 2))
+        : (j.choices?.[0]?.message?.content || JSON.stringify(j, null, 2));
+    } else {
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, {stream: true});
+        buffer = format === "anthropic"
+          ? extractAnthropicStream(buffer, output)
+          : extractOpenAIStream(buffer, output);
+        output.scrollTop = output.scrollHeight;
+      }
+    }
+    addLog("Playground request completed", "good");
+    await loadStatus();
+  } catch (err) {
+    output.textContent = "Error: " + err.message;
+    addLog("Playground failed: " + err.message, "bad");
+    showToast("Request failed", true);
+  }
+}
+
+function updateFormMode() {
+  const type = $("chType").value;
+  const isWeb = type.startsWith("web_");
+  $("apiKeyBlock").classList.toggle("hidden", isWeb);
+  $("webBlock").classList.toggle("hidden", !isWeb);
+  $("formModeHint").textContent = isWeb ? "web session" : "official key";
+  $("defaultModel").value = DEFAULT_MODELS[type] || "auto";
+  if (type === "web_codex") {
+    $("quotaCategory").value = "codex";
+    $("quota").value = $("quota").value || "300";
+  } else if (type === "web_chatgpt") {
+    $("quotaCategory").value = "chat";
+  } else if (!isWeb) {
+    $("quotaCategory").value = "general";
+  }
+}
+
+function bindEvents() {
+  $("serverUrl").addEventListener("change", () => { normalizeServer(); testHealth(); loadStatus(); });
+  $("adminToken").addEventListener("change", () => { normalizeServer(); loadStatus(); });
+  $("healthButton").addEventListener("click", testHealth);
+  $("diagnosticsButton").addEventListener("click", downloadDiagnostics);
+  $("refreshButton").addEventListener("click", () => { testHealth(); loadStatus(); });
+  $("reloadAccounts").addEventListener("click", loadStatus);
+  $("accountForm").addEventListener("submit", addChannel);
+  $("chType").addEventListener("change", updateFormMode);
+  $("sendButton").addEventListener("click", sendPlayground);
+  $("clearLog").addEventListener("click", () => { logs = []; renderLogs(); });
+  $("themeButton").addEventListener("click", () => {
+    const light = document.documentElement.classList.toggle("light");
+    localStorage.setItem("llmPoolTheme", light ? "light" : "dark");
+  });
+  document.body.addEventListener("click", (event) => {
+    const del = event.target.closest("[data-delete]");
+    if (del) deleteChannel(del.getAttribute("data-delete"));
+    const copy = event.target.closest("[data-copy]");
+    if (copy) {
+      const text = $(copy.getAttribute("data-copy")).textContent;
+      navigator.clipboard?.writeText(text);
+      showToast("Copied");
+    }
+  });
+}
+
+async function init() {
+  initTheme();
+  $("serverUrl").value = SERVER;
+  $("adminToken").value = ADMIN_TOKEN;
+  normalizeServer();
+  updateFormMode();
+  bindEvents();
+  renderLogs();
+  setEmptyMetrics();
+  if (BOOTSTRAP.generatedAdminToken && !localStorage.getItem("llmPoolAdminToken")) {
+    addLog("Loaded the generated local admin token for this desktop session.");
+  }
+  await testHealth();
+  await loadStatus();
+  setInterval(() => {
+    if (!document.hidden) loadStatus();
+  }, 8000);
+}
+
+init();
+</script>
+</body>
+</html>
